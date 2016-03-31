@@ -17,13 +17,16 @@ class TorStomp(object):
 
     VERSION = '1.1'
 
-    def __init__(self, host='localhost', port=61613, connect_headers={},
-                 on_error=None, on_disconnect=None, on_connect=None,
-                 reconnect_max_attempts=-1, reconnect_timeout=1000,
-                 log_name='TorStomp'):
+    def __init__(self, host='localhost', port=61613, host_list=None,
+                 connect_headers={}, on_error=None, on_disconnect=None,
+                 on_connect=None, reconnect_max_attempts=-1,
+                 reconnect_timeout=1000, log_name='TorStomp'):
 
         self.host = host
         self.port = port
+        # `host_list` is a list of (host, port) tuples. Overrides host, port attributes
+        # In case of a reconnection, the list is cycled until a reconnect succeeds
+        self.host_list = host_list
         self.logger = logging.getLogger(log_name)
 
         self._connect_headers = connect_headers
@@ -47,7 +50,11 @@ class TorStomp(object):
         self.stream = self._build_io_stream()
 
         try:
-            yield self.stream.connect((self.host, self.port))
+            if self.host_list is not None:
+                _host_port = self.host_list[self._reconnect_attempts % len(self.host_list)]
+            else:
+                _host_port = (self.host, self.port)
+            yield self.stream.connect(_host_port)
             self.logger.info('Stomp connection estabilished')
         except socket.error as error:
             self.logger.error(
